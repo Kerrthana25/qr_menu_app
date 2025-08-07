@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+
+{% block title %}Digital Menu - Order Now{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- Menu Items Section -->
+        <div class="col-lg-8 col-xl-9">
+            <div class="menu-container">
+                <div class="text-center mb-4" data-aos="fade-down">
+                    <h2 class="display-5 fw-bold text-primary">Our Menu</h2>
+                    <p class="lead text-muted">Fresh ingredients, amazing flavors</p>
+                </div>
+
+                {% for category, items in menu_data.items() %}
+                <div class="category-section mb-5" data-aos="fade-up">
+                    <div class="category-header">
+                        <i class="fas fa-utensils me-2"></i>{{ category }}
+                    </div>
+                    
+                    <div class="row g-4">
+                        {% for item in items %}
+                        <div class="col-md-6 col-lg-4" data-aos="fade-up" data-aos-delay="{{ loop.index * 100 }}">
+                            <div class="card menu-item-card h-100">
+                                <div class="menu-item-image" 
+                                     style="background-image: url('{{ url_for('static', filename=item.image_path) if item.image_path else url_for('static', filename='images/placeholder.jpg') }}');">
+                                    <div class="availability-badge {{ 'low-stock' if item.availability <= 5 else '' }}">
+                                        {{ item.availability }} left
+                                    </div>
+                                </div>
+                                
+                                <div class="card-body d-flex flex-column">
+                                    <h5 class="card-title fw-bold">{{ item.name }}</h5>
+                                    <p class="card-text text-muted flex-grow-1">{{ item.description }}</p>
+                                    
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <span class="price-tag">₹{{ "%.2f"|format(item.price) }}</span>
+                                        <div class="quantity-controls">
+                                            <button class="btn btn-outline-secondary btn-sm" 
+                                                    onclick="updateQuantity({{ item.id }}, -1)">
+                                                <i class="fas fa-minus"></i>
+                                            </button>
+                                            <span class="quantity mx-2" id="qty-{{ item.id }}">0</span>
+                                            <button class="btn btn-outline-secondary btn-sm" 
+                                                    onclick="updateQuantity({{ item.id }}, 1)"
+                                                    {{ 'disabled' if item.availability == 0 else '' }}>
+                                                <i class="fas fa-plus"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <button class="btn btn-primary mt-2" 
+                                            onclick="addToCart({{ item.id }}, '{{ item.name }}', {{ item.price }}, '{{ item.image_path or '' }}')"
+                                            {{ 'disabled' if item.availability == 0 else '' }}>
+                                        <i class="fas fa-cart-plus me-2"></i>
+                                        {{ 'Out of Stock' if item.availability == 0 else 'Add to Cart' }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Cart Sidebar -->
+        <div class="col-lg-4 col-xl-3">
+            <div class="cart-sidebar position-sticky" style="top: 100px;">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-shopping-cart me-2"></i>Your Cart
+                            <span class="badge bg-light text-primary ms-2" id="cart-count">0</span>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="cart-items" class="mb-3">
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                                <p>Your cart is empty</p>
+                            </div>
+                        </div>
+                        
+                        <div id="cart-summary" style="display: none;">
+                            <hr>
+                            <div class="d-flex justify-content-between">
+                                <span>Subtotal:</span>
+                                <span id="subtotal">₹0.00</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>GST (5%):</span>
+                                <span id="gst">₹0.00</span>
+                            </div>
+                            <div class="d-flex justify-content-between" id="packing-fee-row" style="display: none;">
+                                <span>Packing Fee:</span>
+                                <span id="packing-fee">₹20.00</span>
+                            </div>
+                            <hr>
+                            <div class="d-flex justify-content-between fw-bold">
+                                <span>Total:</span>
+                                <span id="total">₹0.00</span>
+                            </div>
+                            
+                            <button class="btn btn-success w-100 mt-3" onclick="proceedToCheckout()">
+                                <i class="fas fa-credit-card me-2"></i>Proceed to Checkout
+                            </button>
+                            <button class="btn btn-outline-danger w-100 mt-2" onclick="clearCart()">
+                                <i class="fas fa-trash me-2"></i>Clear Cart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mini Cart (Mobile) -->
+<div class="mini-cart d-lg-none" id="mini-cart" style="display: none;">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <small class="fw-bold">Cart</small>
+        <button class="btn btn-sm btn-primary" onclick="toggleCart()">
+            <i class="fas fa-eye"></i>
+        </button>
+    </div>
+    <div id="mini-cart-items"></div>
+    <div class="text-center">
+        <small class="fw-bold">Total: <span id="mini-total">₹0.00</span></small>
+    </div>
+</div>
+
+<!-- Checkout Modal -->
+<div class="modal fade" id="checkoutModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-user-edit me-2"></i>Customer Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="checkout-form">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Full Name *</label>
+                            <input type="text" class="form-control" id="customer-name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">College *</label>
+                            <select class="form-select" id="college-name" required>
+                                <option value="">Select College</option>
+                                <option value="PSGRKCW">PSGRKCW</option>
+                                <option value="OTHERS">Others</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Roll Number *</label>
+                            <input type="text" class="form-control" id="roll-number" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone Number *</label>
+                            <input type="tel" class="form-control" id="phone-number" 
+                                   pattern="[6-9][0-9]{9}" maxlength="10" required>
+                            <div class="form-text">Enter 10-digit mobile number</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Payment Method *</label>
+                            <div class="payment-methods">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="payment-method" 
+                                           id="payment-cash" value="Cash">
+                                    <label class="form-check-label" for="payment-cash">
+                                        <i class="fas fa-money-bill-wave me-2"></i>Cash
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="payment-method" 
+                                           id="payment-upi" value="UPI">
+                                    <label class="form-check-label" for="payment-upi">
+                                        <i class="fab fa-google-pay me-2"></i>UPI / GPay
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="payment-method" 
+                                           id="payment-card" value="Card">
+                                    <label class="form-check-label" for="payment-card">
+                                        <i class="fas fa-credit-card me-2"></i>Card
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="placeOrder()">
+                    <i class="fas fa-check me-2"></i>Place Order
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search and Filter -->
+<div class="position-fixed" style="top: 100px; right: 20px; z-index: 1030;">
+    <div class="card">
+        <div class="card-body p-3">
+            <div class="mb-2">
+                <input type="text" class="form-control form-control-sm" 
+                       placeholder="Search items..." id="search-input" onkeyup="searchItems()">
+            </div>
+            <select class="form-select form-select-sm" id="category-filter" onchange="filterByCategory()">
+                <option value="">All Categories</option>
+                {% for category in menu_data.keys() %}
+                <option value="{{ category }}">{{ category }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let cart = [];
+    let quantities = {};
+
+    function updateQuantity(itemId, change) {
+        if (!quantities[itemId]) quantities[itemId] = 0;
+        quantities[itemId] = Math.max(0, quantities[itemId] + change);
+        document.getElementById(`qty-${itemId}`).textContent = quantities[itemId];
+    }
+
+    function addToCart(itemId, itemName, itemPrice, itemImage) {
+        const quantity = quantities[itemId] || 1;
+        if (quantity <= 0) {
+            showToast('Please select quantity first', 'error');
+            return;
+        }
+
+        // Check if item already in cart
+        const existingItem = cart.find(item => item.id === itemId);
+        if (existingItem) {
+            existingItem.quantity += quantity;
+        } else {
+            cart.push({
+                id: itemId,
+                name: itemName,
+                price: itemPrice,
+                image: itemImage,
+                quantity: quantity
+            });
+        }
+
+        // Reset quantity display
+        quantities[itemId] = 0;
+        document.getElementById(`qty-${itemId}`).textContent = '0';
+
+        updateCartDisplay();
+        showToast(`${itemName} added to cart!`);
+    }
+
+    function removeFromCart(itemId) {
+        cart = cart.filter(item => item.id !== itemId);
+        updateCartDisplay();
+        showToast('Item removed from cart');
+    }
+
+    function updateCartQuantity(itemId, newQuantity) {
+        const item = cart.find(item => item.id === itemId);
+        if (item) {
+            if (newQuantity <= 0) {
+                removeFromCart(itemId);
+            } else {
+                item.quantity = newQuantity;
+                updateCartDisplay();
+            }
+        }
+    }
+
+    function updateCartDisplay() {
+        const cartItems = document.getElementById('cart-items');
+        const cartSummary = document.getElementById('cart-summary');
+        const cartCount = document.getElementById('cart-count');
+        const miniCart = document.getElementById('mini-cart');
+        const miniCartItems = document.getElementById('mini-cart-items');
+
+        cartCount.textContent = cart.length;
+
+        if (cart.length === 0) {
+            cartItems.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                    <p>Your cart is empty</p>
+                </div>
+            `;
+            cartSummary.style.display = 'none';
+            miniCart.style.display = 'none';
+            return;
+        }
+
+        // Update main cart
+        let cartHTML = '';
+        let subtotal = 0;
+
+        cart.forEach(item => {
+            const itemTotal = item.price * item.quantity;
+            subtotal += itemTotal;
+            
+            cartHTML += `
+                <div class="cart-item border-bottom pb-2 mb-2">
+                    <div class="d-flex align-items-center">
+                        <img src="${item.image ? '/static/' + item.image : '/static/images/placeholder.jpg'}" 
+                             alt="${item.name}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${item.name}</h6>
+                            <small class="text-muted">₹${item.price.toFixed(2)} each</small>
+                        </div>
+                        <div class="text-end">
+                            <div class="btn-group btn-group-sm mb-1">
+                                <button class="btn btn-outline-secondary" onclick="updateCartQuantity(${item.id}, ${item.quantity - 1})">-</button>
+                                <button class="btn btn-outline-secondary" disabled>${item.quantity}</button>
+                                <button class="btn btn-outline-secondary" onclick="updateCartQuantity(${item.id}, ${item.quantity + 1})">+</button>
+                            </div>
+                            <div><small class="fw-bold">₹${itemTotal.toFixed(2)}</small></div>
+                            <button class="btn btn-sm btn-outline-danger" onclick="removeFromCart(${item.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        cartItems.innerHTML = cartHTML;
+
+        // Calculate totals
+        const gst = subtotal * 0.05;
+        const packingFee = subtotal < 500 ? 20 : 0;
+        const total = subtotal + gst + packingFee;
+
+        document.getElementById('subtotal').textContent = `₹${subtotal.toFixed(2)}`;
+        document.getElementById('gst').textContent = `₹${gst.toFixed(2)}`;
+        document.getElementById('packing-fee').textContent = `₹${packingFee.toFixed(2)}`;
+        document.getElementById('total').textContent = `₹${total.toFixed(2)}`;
+        document.getElementById('mini-total').textContent = `₹${total.toFixed(2)}`;
+
+        document.getElementById('packing-fee-row').style.display = packingFee > 0 ? 'flex' : 'none';
+        cartSummary.style.display = 'block';
+
+        // Update mini cart
+        miniCart.style.display = 'block';
+        miniCartItems.innerHTML = `<small>${cart.length} items</small>`;
+    }
+
+    function clearCart() {
+        if (confirm('Are you sure you want to clear the cart?')) {
+            cart = [];
+            quantities = {};
+            updateCartDisplay();
+            showToast('Cart cleared');
+        }
+    }
+
+    function proceedToCheckout() {
+        if (cart.length === 0) {
+            showToast('Your cart is empty!', 'error');
+            return;
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('checkoutModal'));
+        modal.show();
+    }
+
+    function placeOrder() {
+        const form = document.getElementById('checkout-form');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        const customerName = document.getElementById('customer-name').value;
+        const collegeName = document.getElementById('college-name').value;
+        const rollNumber = document.getElementById('roll-number').value;
+        const phoneNumber = document.getElementById('phone-number').value;
+        const paymentMethod = document.querySelector('input[name="payment-method"]:checked')?.value;
+
+        if (!validatePhone(phoneNumber)) {
+            showToast('Please enter a valid 10-digit phone number', 'error');
+            return;
+        }
+
+        if (!paymentMethod) {
+            showToast('Please select a payment method', 'error');
+            return;
+        }
+
+        showLoading();
+
+        const orderData = {
+            customer_name: customerName,
+            college_name: collegeName,
+            roll_number: rollNumber,
+            phone_number: phoneNumber,
+            payment_method: paymentMethod,
+            items: cart
+        };
+
+        fetch('/place_order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(orderData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                // Close modal
+                bootstrap.Modal.getInstance(document.getElementById('checkoutModal')).hide();
+                
+                // Handle payment method specific actions
+                if (paymentMethod === 'Cash') {
+                    // Force download bill
+                    window.open(`/bill/${data.order_id}`, '_blank');
+                    showToast('Order placed! Please download your bill.');
+                } else if (paymentMethod === 'UPI') {
+                    // Open UPI payment
+                    const upiUrl = `upi://pay?pa=merchant@upi&pn=Restaurant&am=${data.total}&cu=INR&tn=Order ${data.order_id}`;
+                    window.location.href = upiUrl;
+                    showToast('Redirecting to UPI payment...');
+                } else {
+                    showToast('Order placed successfully!');
+                    window.open(`/bill/${data.order_id}`, '_blank');
+                }
+                
+                // Clear cart
+                cart = [];
+                quantities = {};
+                updateCartDisplay();
+                
+            } else {
+                showToast('Error placing order: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showToast('Error placing order. Please try again.', 'error');
+            console.error('Error:', error);
+        });
+    }
+
+    function searchItems() {
+        const searchTerm = document.getElementById('search-input').value.toLowerCase();
+        const menuItems = document.querySelectorAll('.menu-item-card');
+        
+        menuItems.forEach(item => {
+            const itemName = item.querySelector('.card-title').textContent.toLowerCase();
+            const itemDesc = item.querySelector('.card-text').textContent.toLowerCase();
+            
+            if (itemName.includes(searchTerm) || itemDesc.includes(searchTerm)) {
+                item.parentElement.style.display = 'block';
+            } else {
+                item.parentElement.style.display = 'none';
+            }
+        });
+    }
+
+    function filterByCategory() {
+        const selectedCategory = document.getElementById('category-filter').value;
+        const categorySection = document.querySelectorAll('.category-section');
+        
+        categorySection.forEach(section => {
+            if (selectedCategory === '' || section.querySelector('.category-header').textContent.trim().includes(selectedCategory)) {
+                section.style.display = 'block';
+            } else {
+                section.style.display = 'none';
+            }
+        });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCartDisplay();
+    });
+</script>
+{% endblock %}

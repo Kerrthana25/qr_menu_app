@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+
+{% block title %}Upload New Item{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card" data-aos="fade-up">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-plus-circle me-2"></i>Add New Menu Item
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    {% if success %}
+                    <div class="alert alert-success" role="alert">
+                        <i class="fas fa-check-circle me-2"></i>{{ success }}
+                    </div>
+                    {% endif %}
+
+                    {% if error %}
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" enctype="multipart/form-data" id="upload-form">
+                        <div class="row g-3">
+                            <!-- Image Upload -->
+                            <div class="col-12">
+                                <label class="form-label">Item Image</label>
+                                <div class="upload-area border-2 border-dashed rounded p-4 text-center" 
+                                     ondrop="dropHandler(event)" ondragover="dragOverHandler(event)"
+                                     onclick="document.getElementById('image').click()">
+                                    <div id="upload-preview">
+                                        <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                                        <p class="mb-0">Click to upload or drag and drop</p>
+                                        <small class="text-muted">JPG, PNG files up to 10MB</small>
+                                    </div>
+                                    <input type="file" class="form-control d-none" id="image" name="image" 
+                                           accept=".jpg,.jpeg,.png" onchange="previewImage(this)">
+                                </div>
+                            </div>
+
+                            <!-- Basic Info -->
+                            <div class="col-md-6">
+                                <label for="name" class="form-label">Item Name *</label>
+                                <input type="text" class="form-control" id="name" name="name" required maxlength="100">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="category" class="form-label">Category *</label>
+                                <select class="form-select" id="category" name="category" required>
+                                    <option value="">Select Category</option>
+                                    {% for category in categories %}
+                                    <option value="{{ category }}">{{ category }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="description" class="form-label">Description</label>
+                                <textarea class="form-control" id="description" name="description" 
+                                          rows="3" maxlength="500" placeholder="Brief description of the item..."></textarea>
+                                <div class="form-text">
+                                    <span id="desc-count">0</span>/500 characters
+                                </div>
+                            </div>
+
+                            <!-- Pricing & Availability -->
+                            <div class="col-md-6">
+                                <label for="price" class="form-label">Price (₹) *</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">₹</span>
+                                    <input type="number" class="form-control" id="price" name="price" 
+                                           step="0.01" min="0" max="9999" required>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="availability" class="form-label">Initial Stock *</label>
+                                <input type="number" class="form-control" id="availability" name="availability" 
+                                       min="0" max="999" required placeholder="Number of servings available">
+                            </div>
+
+                            <!-- Additional Options -->
+                            <div class="col-12">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Additional Options</h6>
+                                        <div class="row g-3">
+                                            <div class="col-md-4">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="vegetarian">
+                                                    <label class="form-check-label" for="vegetarian">
+                                                        <i class="fas fa-leaf text-success me-1"></i>Vegetarian
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="spicy">
+                                                    <label class="form-check-label" for="spicy">
+                                                        <i class="fas fa-pepper-hot text-danger me-1"></i>Spicy
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="popular">
+                                                    <label class="form-check-label" for="popular">
+                                                        <i class="fas fa-star text-warning me-1"></i>Popular Item
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="col-12">
+                                <hr>
+                                <div class="d-flex justify-content-between">
+                                    <a href="/admin_dashboard" class="btn btn-outline-secondary">
+                                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                                    </a>
+                                    <div>
+                                        <button type="reset" class="btn btn-outline-warning me-2">
+                                            <i class="fas fa-undo me-2"></i>Reset Form
+                                        </button>
+                                        <button type="submit" class="btn btn-success">
+                                            <i class="fas fa-save me-2"></i>Add Item
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Preview Card -->
+            <div class="card mt-4" id="preview-card" style="display: none;" data-aos="fade-up" data-aos-delay="200">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-eye me-2"></i>Live Preview
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="preview-image-container">
+                                <img id="preview-img" src="" alt="Preview" class="img-fluid rounded">
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <h5 id="preview-name" class="fw-bold">Item Name</h5>
+                            <p id="preview-description" class="text-muted">Item description will appear here...</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="price-tag" id="preview-price">₹0.00</span>
+                                <div class="badges" id="preview-badges"></div>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-box me-1"></i>
+                                    <span id="preview-stock">0</span> items available
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Form validation and preview
+    const form = document.getElementById('upload-form');
+    const nameInput = document.getElementById('name');
+    const descriptionInput = document.getElementById('description');
+    const priceInput = document.getElementById('price');
+    const availabilityInput = document.getElementById('availability');
+    const previewCard = document.getElementById('preview-card');
+
+    // Character counter for description
+    descriptionInput.addEventListener('input', function() {
+        document.getElementById('desc-count').textContent = this.value.length;
+        updatePreview();
+    });
+
+    // Update preview on input changes
+    [nameInput, priceInput, availabilityInput].forEach(input => {
+        input.addEventListener('input', updatePreview);
+    });
+
+    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+        checkbox.addEventListener('change', updatePreview);
+    });
+
+    function updatePreview() {
+        const name = nameInput.value || 'Item Name';
+        const description = descriptionInput.value || 'Item description will appear here...';
+        const price = priceInput.value || '0.00';
+        const stock = availabilityInput.value || '0';
+
+        document.getElementById('preview-name').textContent = name;
+        document.getElementById('preview-description').textContent = description;
+        document.getElementById('preview-price').textContent = `₹${parseFloat(price).toFixed(2)}`;
+        document.getElementById('preview-stock').textContent = stock;
+
+        // Update badges
+        const badges = [];
+        if (document.getElementById('vegetarian').checked) {
+            badges.push('<span class="badge bg-success me-1"><i class="fas fa-leaf me-1"></i>Veg</span>');
+        }
+        if (document.getElementById('spicy').checked) {
+            badges.push('<span class="badge bg-danger me-1"><i class="fas fa-pepper-hot me-1"></i>Spicy</span>');
+        }
+        if (document.getElementById('popular').checked) {
+            badges.push('<span class="badge bg-warning me-1"><i class="fas fa-star me-1"></i>Popular</span>');
+        }
+        document.getElementById('preview-badges').innerHTML = badges.join('');
+
+        // Show preview card if form has content
+        if (name !== 'Item Name' || price !== '0.00') {
+            previewCard.style.display = 'block';
+        }
+    }
+
+    function previewImage(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            const file = input.files[0];
+
+            // Validate file size (10MB max)
+            if (file.size > 10 * 1024 * 1024) {
+                showToast('File size must be less than 10MB', 'error');
+                input.value = '';
+                return;
+            }
+
+            // Validate file type
+            if (!file.type.match('image.*')) {
+                showToast('Please select a valid image file', 'error');
+                input.value = '';
+                return;
+            }
+
+            reader.onload = function(e) {
+                const uploadPreview = document.getElementById('upload-preview');
+                uploadPreview.innerHTML = `
+                    <img src="${e.target.result}" alt="Preview" class="img-fluid rounded mb-2" style="max-height: 200px;">
+                    <p class="mb-0"><strong>${file.name}</strong></p>
+                    <small class="text-muted">${(file.size / 1024 / 1024).toFixed(2)} MB</small>
+                `;
+
+                // Update preview card image
+                document.getElementById('preview-img').src = e.target.result;
+                updatePreview();
+            };
+
+            reader.readAsDataURL(file);
+        }
+    }
+
+    // Drag and drop functionality
+    function dragOverHandler(ev) {
+        ev.preventDefault();
+        ev.currentTarget.style.backgroundColor = '#f8f9fa';
+    }
+
+    function dropHandler(ev) {
+        ev.preventDefault();
+        ev.currentTarget.style.backgroundColor = '';
+        
+        if (ev.dataTransfer.items) {
+            const file = ev.dataTransfer.items[0].getAsFile();
+            if (file && file.type.match('image.*')) {
+                document.getElementById('image').files = ev.dataTransfer.files;
+                previewImage(document.getElementById('image'));
+            } else {
+                showToast('Please drop a valid image file', 'error');
+            }
+        }
+    }
+
+    // Form submission
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Validate required fields
+        if (!nameInput.value.trim()) {
+            showToast('Item name is required', 'error');
+            nameInput.focus();
+            return;
+        }
+
+        if (!document.getElementById('category').value) {
+            showToast('Please select a category', 'error');
+            document.getElementById('category').focus();
+            return;
+        }
+
+        if (!priceInput.value || parseFloat(priceInput.value) <= 0) {
+            showToast('Please enter a valid price', 'error');
+            priceInput.focus();
+            return;
+        }
+
+        if (!availabilityInput.value || parseInt(availabilityInput.value) < 0) {
+            showToast('Please enter a valid stock quantity', 'error');
+            availabilityInput.focus();
+            return;
+        }
+
+        // Show loading and submit
+        showLoading();
+        this.submit();
+    });
+
+    // Reset form handler
+    form.addEventListener('reset', function() {
+        document.getElementById('upload-preview').innerHTML = `
+            <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+            <p class="mb-0">Click to upload or drag and drop</p>
+            <small class="text-muted">JPG, PNG files up to 10MB</small>
+        `;
+        document.getElementById('desc-count').textContent = '0';
+        previewCard.style.display = 'none';
+    });
+
+    // Initialize preview on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        updatePreview();
+    });
+</script>
+
+<style>
+    .upload-area {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        min-height: 150px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .upload-area:hover {
+        background-color: #f8f9fa;
+        border-color: var(--primary-color) !important;
+    }
+
+    .preview-image-container {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 15px;
+        text-align: center;
+        min-height: 200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .preview-image-container img {
+        max-height: 180px;
+        object-fit: cover;
+    }
+
+    .form-check-label {
+        cursor: pointer;
+    }
+
+    .badges .badge {
+        font-size: 0.75rem;
+    }
+</style>
+{% endblock %}

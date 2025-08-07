@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-lg-3 col-xl-2">
+            <div class="card">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-user-cog text-primary" style="font-size: 2rem;"></i>
+                        <h5 class="mt-2">Admin Panel</h5>
+                    </div>
+                    <div class="list-group list-group-flush">
+                        <a href="#overview" class="list-group-item list-group-item-action active" onclick="showSection('overview')">
+                            <i class="fas fa-tachometer-alt me-2"></i>Overview
+                        </a>
+                        <a href="#menu-items" class="list-group-item list-group-item-action" onclick="showSection('menu-items')">
+                            <i class="fas fa-utensils me-2"></i>Menu Items
+                        </a>
+                        <a href="#orders" class="list-group-item list-group-item-action" onclick="showSection('orders')">
+                            <i class="fas fa-receipt me-2"></i>Orders
+                        </a>
+                        <a href="#logs" class="list-group-item list-group-item-action" onclick="showSection('logs')">
+                            <i class="fas fa-history me-2"></i>Activity Logs
+                        </a>
+                        <a href="/admin_upload" class="list-group-item list-group-item-action text-success">
+                            <i class="fas fa-plus me-2"></i>Add New Item
+                        </a>
+                        <a href="/admin_logout" class="list-group-item list-group-item-action text-danger">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-lg-9 col-xl-10">
+            <!-- Overview Section -->
+            <div id="overview-section" class="dashboard-section">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="fw-bold">Dashboard Overview</h2>
+                    <div class="text-muted">
+                        <i class="fas fa-clock me-1"></i>
+                        Last updated: <span id="current-time"></span>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white" data-aos="fade-up">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-title">Total Items</h6>
+                                        <h3 class="mb-0">{{ items|length }}</h3>
+                                    </div>
+                                    <i class="fas fa-utensils fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white" data-aos="fade-up" data-aos-delay="100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-title">Total Orders</h6>
+                                        <h3 class="mb-0">{{ orders|length }}</h3>
+                                    </div>
+                                    <i class="fas fa-shopping-cart fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white" data-aos="fade-up" data-aos-delay="200">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-title">Low Stock Items</h6>
+                                        <h3 class="mb-0">{{ items|selectattr('availability', 'le', 5)|list|length }}</h3>
+                                    </div>
+                                    <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white" data-aos="fade-up" data-aos-delay="300">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-title">Revenue Today</h6>
+                                        <h3 class="mb-0">₹{{ orders|selectattr('created_at', 'match', '.*' + moment().format('YYYY-MM-DD') + '.*')|map(attribute='total')|sum|round(2) if orders else 0 }}</h3>
+                                    </div>
+                                    <i class="fas fa-rupee-sign fa-2x opacity-75"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="card" data-aos="fade-right">
+                            <div class="card-header">
+                                <h5 class="mb-0">Quick Actions</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2">
+                                    <a href="/admin_upload" class="btn btn-primary">
+                                        <i class="fas fa-plus me-2"></i>Add New Menu Item
+                                    </a>
+                                    <button class="btn btn-warning" onclick="showLowStockItems()">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>View Low Stock Items
+                                    </button>
+                                    <button class="btn btn-info" onclick="exportData()">
+                                        <i class="fas fa-download me-2"></i>Export Reports
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card" data-aos="fade-left">
+                            <div class="card-header">
+                                <h5 class="mb-0">Recent Activity</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="activity-feed" style="max-height: 200px; overflow-y: auto;">
+                                    {% for log in logs[:5] %}
+                                    <div class="d-flex mb-2">
+                                        <div class="flex-shrink-0">
+                                            <i class="fas fa-circle text-primary" style="font-size: 0.5rem;"></i>
+                                        </div>
+                                        <div class="flex-grow-1 ms-2">
+                                            <small class="fw-bold">{{ log.action }}</small><br>
+                                            <small class="text-muted">{{ log.created_at }}</small>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Menu Items Section -->
+            <div id="menu-items-section" class="dashboard-section" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="fw-bold">Menu Items Management</h2>
+                    <a href="/admin_upload" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Add New Item
+                    </a>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Image</th>
+                                        <th>Name</th>
+                                        <th>Category</th>
+                                        <th>Price</th>
+                                        <th>Availability</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in items %}
+                                    <tr>
+                                        <td>
+                                            <img src="{{ url_for('static', filename=item.image_path) if item.image_path else url_for('static', filename='images/placeholder.jpg') }}" 
+                                                 alt="{{ item.name }}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
+                                        </td>
+                                        <td>
+                                            <strong>{{ item.name }}</strong><br>
+                                            <small class="text-muted">{{ item.description[:50] }}...</small>
+                                        </td>
+                                        <td><span class="badge bg-secondary">{{ item.category }}</span></td>
+                                        <td><strong>₹{{ "%.2f"|format(item.price) }}</strong></td>
+                                        <td>
+                                            <div class="input-group input-group-sm" style="width: 120px;">
+                                                <input type="number" class="form-control" value="{{ item.availability }}" 
+                                                       id="availability-{{ item.id }}" min="0">
+                                                <button class="btn btn-outline-primary" onclick="updateAvailability({{ item.id }})">
+                                                    <i class="fas fa-save"></i>
+                                                </button>
+                                            </div>
+                                            {% if item.availability <= 5 %}
+                                            <small class="text-warning">Low Stock!</small>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <small>{{ item.created_at }}</small><br>
+                                            <small class="text-muted">by {{ item.uploaded_by }}</small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group-sm">
+                                                <button class="btn btn-sm btn-outline-primary" onclick="editItem({{ item.id }})">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger" onclick="deleteItem({{ item.id }})">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Orders Section -->
+            <div id="orders-section" class="dashboard-section" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="fw-bold">Orders Management</h2>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-primary" onclick="filterOrders('all')">All</button>
+                        <button class="btn btn-outline-primary" onclick="filterOrders('today')">Today</button>
+                        <button class="btn btn-outline-primary" onclick="filterOrders('week')">This Week</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Order ID</th>
+                                        <th>Customer</th>
+                                        <th>College</th>
+                                        <th>Phone</th>
+                                        <th>Payment</th>
+                                        <th>Total</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for order in orders %}
+                                    <tr>
+                                        <td><strong>{{ order.order_id }}</strong></td>
+                                        <td>
+                                            <strong>{{ order.customer_name }}</strong><br>
+                                            <small class="text-muted">{{ order.roll_number }}</small>
+                                        </td>
+                                        <td>{{ order.college_name }}</td>
+                                        <td>{{ order.phone_number }}</td>
+                                        <td>
+                                            <span class="badge bg-{{ 'success' if order.payment_method == 'UPI' else 'warning' if order.payment_method == 'Cash' else 'info' }}">
+                                                {{ order.payment_method }}
+                                            </span>
+                                        </td>
+                                        <td><strong>₹{{ "%.2f"|format(order.total) }}</strong></td>
+                                        <td>
+                                            <span class="badge bg-{{ 'success' if order.bill_downloaded else 'warning' }}">
+                                                {{ 'Completed' if order.bill_downloaded else 'Pending' }}
+                                            </span>
+                                        </td>
+                                        <td><small>{{ order.created_at }}</small></td>
+                                        <td>
+                                            <div class="btn-group-sm">
+                                                <a href="/bill/{{ order.order_id }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                                    <i class="fas fa-receipt"></i>
+                                                </a>
+                                                <button class="btn btn-sm btn-outline-info" onclick="viewOrderDetails('{{ order.order_id }}')">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Section -->
+            <div id="logs-section" class="dashboard-section" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="fw-bold">Activity Logs</h2>
+                    <button class="btn btn-outline-danger" onclick="clearLogs()">
+                        <i class="fas fa-trash me-2"></i>Clear Logs
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Admin User</th>
+                                        <th>Action</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for log in logs %}
+                                    <tr>
+                                        <td><small>{{ log.created_at }}</small></td>
+                                        <td><strong>{{ log.admin_user }}</strong></td>
+                                        <td>
+                                            <span class="badge bg-{{ 'success' if 'LOGIN' in log.action else 'info' if 'ADDED' in log.action else 'warning' if 'UPDATED' in log.action else 'secondary' }}">
+                                                {{ log.action }}
+                                            </span>
+                                        </td>
+                                        <td><small>{{ log.details or 'No details' }}</small></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Order Details Modal -->
+<div class="modal fade" id="orderDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Order Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="orderDetailsBody">
+                <!-- Order details will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function showSection(sectionName) {
+        // Hide all sections
+        document.querySelectorAll('.dashboard-section').forEach(section => {
+            section.style.display = 'none';
+        });
+        
+        // Show selected section
+        document.getElementById(sectionName + '-section').style.display = 'block';
+        
+        // Update active nav
+        document.querySelectorAll('.list-group-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        document.querySelector(`[onclick="showSection('${sectionName}')"]`).classList.add('active');
+    }
+
+    function updateAvailability(itemId) {
+        const newAvailability = document.getElementById(`availability-${itemId}`).value;
+        
+        showLoading();
+        
+        fetch('/update_availability', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                item_id: itemId,
+                availability: parseInt(newAvailability)
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showToast('Availability updated successfully!');
+            } else {
+                showToast('Error updating availability: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showToast('Error updating availability', 'error');
+            console.error('Error:', error);
+        });
+    }
+
+    function editItem(itemId) {
+        showToast('Edit functionality coming soon!', 'info');
+    }
+
+    function deleteItem(itemId) {
+        if (confirm('Are you sure you want to delete this item?')) {
+            showToast('Delete functionality coming soon!', 'info');
+        }
+    }
+
+    function showLowStockItems() {
+        showSection('menu-items');
+        // Highlight low stock items
+        document.querySelectorAll('tr').forEach(row => {
+            const stockCell = row.querySelector('input[id^="availability-"]');
+            if (stockCell && parseInt(stockCell.value) <= 5) {
+                row.style.backgroundColor = '#fff3cd';
+            }
+        });
+    }
+
+    function exportData() {
+        showToast('Export functionality coming soon!', 'info');
+    }
+
+    function filterOrders(filter) {
+        showToast(`Filtering orders by: ${filter}`, 'info');
+        // Filter functionality to be implemented
+    }
+
+    function viewOrderDetails(orderId) {
+        // Load order details in modal
+        showToast('Loading order details...', 'info');
+        const modal = new bootstrap.Modal(document.getElementById('orderDetailsModal'));
+        modal.show();
+    }
+
+    function clearLogs() {
+        if (confirm('Are you sure you want to clear all logs?')) {
+            showToast('Clear logs functionality coming soon!', 'info');
+        }
+    }
+
+    function updateCurrentTime() {
+        const now = new Date();
+        document.getElementById('current-time').textContent = now.toLocaleString();
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 60000); // Update every minute
+    });
+</script>
+{% endblock %}
